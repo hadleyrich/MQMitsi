@@ -1,3 +1,8 @@
+import logging
+
+log = logging.getLogger(__name__)
+
+
 class LookupDict(dict):
     def __init__(self, d, name="unknown"):
         super(self.__class__, self).__init__(d)
@@ -6,7 +11,7 @@ class LookupDict(dict):
     def lookup(self, value):
         try:
             ret = [k for k, v in self.items() if v == value][0]
-        except:
+        except Exception:
             ret = None
             log.error("Failed to lookup %s from %s" % (value, self.name))
         return ret

@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v1.2.3
+    hooks:
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: flake8
+  - repo: https://github.com/asottile/seed-isort-config
+    rev: v1.9.2
+    hooks:
+      - id: seed-isort-config
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v4.3.21
+    hooks:
+      - id: isort
+        exclude: migrations
+        additional_dependencies: [toml]
+  - repo: https://github.com/psf/black
+    rev: stable
+    hooks:
+      - id: black
+        exclude: migrations
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.6.2
+    hooks:
+      - id: bandit
+        args: [-x, tests]
+  - repo: local
+    hooks:
+      - id: requirements
+        name: export requirements
+        language: system
+        files: poetry.lock
+        pass_filenames: False
+        entry: poetry export -f requirements.txt --without-hashes
+      # - id: tests
+      #   name: run tests
+      #   language: system
+      #   entry: pytest tests
+      #   types: [python]
+      #   stages: [push]

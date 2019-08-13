@@ -1,2 +1,2 @@
-pyserial
-paho-mqtt
+paho-mqtt==1.4.0
+pyserial==3.4

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
+import argparse
+import json
+import logging
+import signal
 import sys
 import time
-import json
-import signal
-import logging
-import argparse
+
 import paho.mqtt.client as mqtt
 from mitsi import HeatPump
 
@@ -57,7 +58,7 @@ class Handler(object):
                 log.warning("Disonnected from MQTT broker: %s", self.broker)
                 try:
                     self.client.connect(self.broker)
-                except:
+                except Exception:
                     time.sleep(1)
 
     def on_message(self, client, userdata, msg):
@@ -74,7 +75,7 @@ class Handler(object):
                     log.warning("Invalid JSON: %s" % msg.payload)
                 try:
                     self.hp.set(state)
-                except:
+                except Exception:
                     log.error("Failed to set")
 
     def cleanup(self, signum, frame):

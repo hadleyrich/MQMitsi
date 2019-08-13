@@ -1,20 +1,22 @@
 #!/usr/bin/env python
 
+import logging
 import sys
 import time
-import serial
-import logging
 from copy import copy
+
+import serial
+
 from mitsi_lookup import (
-    POWER,
-    TEMP,
-    ROOM_TEMP,
-    MODE,
-    VANE,
+    CONTROL_PACKET_POSITIONS,
+    CONTROL_PACKET_VALUES,
     DIR,
     FAN,
-    CONTROL_PACKET_VALUES,
-    CONTROL_PACKET_POSITIONS,
+    MODE,
+    POWER,
+    ROOM_TEMP,
+    TEMP,
+    VANE,
 )
 
 HEADER_LEN = 5
