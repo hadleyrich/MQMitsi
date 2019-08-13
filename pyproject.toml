@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "MQMitsi"
 version = "0.1.0"
-description = ""
+description = "Python scripts to interface with a Mitsubishi Heat Pump / Air Conditioner"
 authors = ["Hadley Rich <hads@nice.net.nz>"]
 
 [tool.poetry.dependencies]

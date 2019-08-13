@@ -1,6 +1,6 @@
 MQMitsi
 =======
-Copyright 2015-2017 Hadley Rich  
+Copyright 2015-2019 Hadley Rich  
 Website: <http://nice.net.nz>
 
 Python scripts to interface with a Mitsubishi Heat Pump / Air Conditioner
@@ -8,6 +8,8 @@ Python scripts to interface with a Mitsubishi Heat Pump / Air Conditioner
 Includes a module for UART communication with the unit itself, and also a module for interfacing through MQTT.
 
 A work in progress. There are a couple of issues and missing things.
+
+Thanks to @hcooper
 
 Example Usage
 -------------
