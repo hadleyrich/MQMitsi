@@ -7,11 +7,12 @@ import signal
 import logging
 import argparse
 import paho.mqtt.client as mqtt
-from mitsi import *
+from mitsi import HeatPump
 
 
 class Handler(object):
-    def __init__(self, serial_port, broker, prefix, user=None, password=None):
+    def __init__(self, serial_port, broker, broker_port,
+                 prefix, user=None, password=None):
         self.running = True
         self.prefix = prefix
         signal.signal(signal.SIGINT, self.cleanup)
@@ -27,7 +28,7 @@ class Handler(object):
         self.client.will_set(will_topic, '0', qos=1, retain=True)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.client.connect(broker)
+        self.client.connect(broker, port=broker_port)
         self.publish('connected', 1, qos=1, retain=True)
         self.connected_state = 1
         self.client.subscribe('%s/command/#' % prefix)
@@ -71,7 +72,10 @@ class Handler(object):
                     state = json.loads(msg.payload)
                 except ValueError:
                     log.warning('Invalid JSON: %s' % msg.payload)
-                self.hp.set(state)
+                try:
+                    self.hp.set(state)
+                except:
+                    log.error('Failed to set')
 
     def cleanup(self, signum, frame):
         self.running = False
@@ -80,30 +84,33 @@ class Handler(object):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Bridge Mitsi and MQTT')
+    parser = argparse.ArgumentParser(
+                        description='Monitor & control a Mitsubishi heatpump '
+                                    'via MQTT.',
+                        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--mqtt-host',
                         default='localhost', help='MQTT broker')
-#    parser.add_argument('--mqtt-port',
-#                        default='1883', type=int, help='MQTT port')
+    parser.add_argument('--mqtt-port',
+                        default='1883', type=int, help='MQTT port')
     parser.add_argument('--mqtt-prefix',
                         default='mqmitsi',
-                        help='MQTT topic prefix prepended to messages')
+                        help='MQTT topic prefix prepended to messages.')
     parser.add_argument('--serial-port',
                         default='/dev/ttyAMA0',
-                        help='Serial device to communicate on')
+                        help='Serial device to communicate on.')
     parser.add_argument('--log',
-                        help='Set log level. Defaults to WARNING')
+                        help='Set log level.',
+                        default='WARNING')
     args = parser.parse_args()
 
     log = logging.getLogger()
-    log.setLevel(logging.DEBUG)
+    log.setLevel(args.log)
     console = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
-    console.setLevel(logging.DEBUG)
+    console.setLevel(args.log)
     log.addHandler(console)
-    if args.log:
-        console.setLevel(args.log)
 
-    h = Handler(args.serial_port, broker=args.mqtt_host, prefix=args.mqtt_prefix)
+    h = Handler(args.serial_port, broker=args.mqtt_host,
+                prefix=args.mqtt_prefix, broker_port=args.mqtt_port)
     h.run()

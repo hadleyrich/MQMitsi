@@ -5,137 +5,21 @@ import time
 import serial
 import logging
 from copy import copy
+from mitsi_lookup import (POWER, TEMP, ROOM_TEMP, MODE, VANE, DIR,
+                          FAN, CONTROL_PACKET_VALUES, CONTROL_PACKET_POSITIONS)
 
 HEADER_LEN = 5
 
 log = logging.getLogger(__name__)
 
 
-class LookupDict(dict):
-    def lookup(self, value):
-        return [k for k, v in self.items() if v == value][0]
-
-POWER = LookupDict({
-    'OFF': 0x00,
-    'ON': 0x01,
-})
-
-TEMP = LookupDict({
-    31: 0x00,
-    30: 0x01,
-    29: 0x02,
-    28: 0x03,
-    27: 0x04,
-    26: 0x05,
-    25: 0x06,
-    24: 0x07,
-    23: 0x08,
-    22: 0x09,
-    21: 0x0a,
-    20: 0x0b,
-    19: 0x0c,
-    18: 0x0d,
-    17: 0x0e,
-    16: 0x0f,
-})
-
-ROOM_TEMP = LookupDict({
-    10: 0x00,
-    11: 0x01,
-    12: 0x02,
-    13: 0x03,
-    14: 0x04,
-    15: 0x05,
-    16: 0x06,
-    17: 0x07,
-    18: 0x08,
-    19: 0x09,
-    20: 0x0a,
-    21: 0x0b,
-    22: 0x0c,
-    23: 0x0d,
-    24: 0x0e,
-    25: 0x0f,
-    26: 0x10,
-    27: 0x11,
-    28: 0x12,
-    29: 0x13,
-    30: 0x14,
-    31: 0x15,
-    32: 0x16,
-    33: 0x17,
-    34: 0x18,
-    35: 0x19,
-    36: 0x1a,
-    37: 0x1b,
-    38: 0x1c,
-    39: 0x1d,
-    40: 0x1e,
-    41: 0x1f,
-})
-
-MODE = LookupDict({
-    'HEAT': 0x01,
-    'DRY': 0x02,
-    'COOL': 0x03,
-    'FAN': 0x07,
-    'AUTO': 0x08,
-})
-
-VANE = LookupDict({
-    'AUTO': 0x00,
-    '1': 0x01,
-    '2': 0x02,
-    '3': 0x03,
-    '4': 0x04,
-    '5': 0x05,
-    'SWING': 0x07,
-})
-
-DIR = LookupDict({
-    '<<': 0x01,
-    '<': 0x02,
-    '|': 0x03,
-    '>': 0x04,
-    '>>': 0x05,
-    '<>': 0x08,
-    'SWING': 0x0c,
-})
-
-FAN = LookupDict({
-    'AUTO': 0x00,
-    'QUIET': 0x01,
-    '1': 0x02,
-    '2': 0x03,
-    '3': 0x05,
-    '4': 0x06,
-})
-
-CONTROL_PACKET_VALUES = LookupDict({
-    'POWER': 0x01,
-    'MODE': 0x02,
-    'TEMP': 0x04,
-    'FAN': 0x08,
-    'VANE': 0x10,
-    'DIR': 0x80,
-})
-
-CONTROL_PACKET_POSITIONS = LookupDict({
-    'POWER': 3,
-    'MODE': 4,
-    'TEMP': 5,
-    'FAN': 6,
-    'VANE': 7,
-    'DIR': 10,
-})
-
-
 class HeatPump(object):
-    attributes = ('power', 'mode', 'temp', 'fan', 'vane', 'dir', 'room_temp')
+    reported_attributes = ('power', 'mode', 'temp', 'fan', 'vane', 'dir',
+                           'room_temp')
 
     def __init__(self, port=None, **kwargs):
         self.port = port
-        for item in self.attributes:
+        for item in self.reported_attributes:
             setattr(self, item, kwargs.get(item, None))
         self.dirty = True
         self.room_temp = None
@@ -151,34 +35,78 @@ class HeatPump(object):
         ]
 
     def __setattr__(self, item, value):
-        if item in self.attributes:
+        """ Set self.dirty when setting a reported attribute. Used downsteam to
+            determine if there's a change in state since we last looked. """
+        if item in self.reported_attributes:
             if getattr(self, item, None) != value:
                 self.dirty = True
         super(HeatPump, self).__setattr__(item, value)
 
     def to_dict(self):
+        """ Return all the heatpump's reported attributes as
+            a dict. """
         d = {}
-        for item in self.attributes:
+        for item in self.reported_attributes:
             d[item] = getattr(self, item)
         return d
 
     def from_dict(self, d):
-        for item in self.attributes:
+        """ Set all the heatpump's reported attributes from
+            the provided dict. """
+        for item in self.reported_attributes:
             if d.get(item, None):
                 setattr(self, item, d.get(item))
 
     @property
     def valid(self):
-        for item in self.attributes:
+        """ Validates every reported attribute has been set as an
+            actual HeatPump() attribute. """
+        for item in self.reported_attributes:
             if getattr(self, item, None) is None:
                 return False
         return True
 
     def connect(self):
+        """ Establish a serial connection to self.port. """
         if self.port:
             self.ser = serial.Serial(
                 self.port, 2400, parity=serial.PARITY_EVEN, timeout=0)
             self.ser.write(bytearray(self.start_packet.bytes))
+
+    def map_set_packet_to_attributes(self):
+        """ Match data in a Packet() to the relevant HeatPump() attribute. """
+        result = []
+        for attribute_name in self.reported_attributes:
+
+            # Get the lookup dictonary name from the attribute name
+            # e.g. 'power' -> 'POWER'
+            ATTRIBUTE_NAME = attribute_name.upper()
+
+            # See what position this attribute should be in the Packet()
+            # e.g. CONTROL_PACKET_POSITIONS['POWER']
+            position = CONTROL_PACKET_POSITIONS.get(ATTRIBUTE_NAME, None)
+
+            if position:
+
+                # Retrieve the value from the Packet()
+                raw_value = self.current_packet.data[position]
+
+                # Dynamically get the lookup dictonary for an attribute,
+                # and lookup the human form of the value.
+                # e.g. "POWER"
+                try:
+                    converted_value = globals()[ATTRIBUTE_NAME].lookup(
+                        raw_value)
+                except KeyError:
+                    log.error("Failed to lookup %s[%s]" % (
+                        ATTRIBUTE_NAME, raw_value))
+
+                # Set the attribute on the HeatPump() object.
+                # e.g. "self.power = 'ON'"
+                setattr(self, attribute_name, converted_value)
+                result.append((attribute_name, converted_value))
+
+        log.debug('Set Packet: %s' % result)
 
     def loop(self):
         res = self.ser.read(22)
@@ -195,15 +123,11 @@ class HeatPump(object):
             if self.current_packet.complete:
                 if self.current_packet.valid:
                     if self.current_packet.data[0] == 0x02:  # Set Packet
-                        self.power = POWER.lookup(self.current_packet.data[3])
-                        self.mode = MODE.lookup(self.current_packet.data[4])
-                        self.temp = TEMP.lookup(self.current_packet.data[5])
-                        self.fan = FAN.lookup(self.current_packet.data[6])
-                        self.vane = VANE.lookup(self.current_packet.data[7])
-                        self.dir = DIR.lookup(self.current_packet.data[10])
+                        self.map_set_packet_to_attributes()
                     if self.current_packet.data[0] == 0x03:  # Temp Packet
                         self.room_temp = ROOM_TEMP.lookup(
                             self.current_packet.data[3])
+                        log.debug('Temp Packet: %s' % self.room_temp)
 
                     if self.current_packet.data[0] in self.packet_history and \
                        self.current_packet == self.packet_history[
@@ -212,7 +136,8 @@ class HeatPump(object):
                     else:
                         log.debug('HP Packet: 0x%x : %s : 0x%x' % (
                             self.current_packet.type, ','.join(
-                                ['%02x' % x for x in self.current_packet.data]),
+                                ['%02x' %
+                                 x for x in self.current_packet.data]),
                             self.current_packet.checksum))
                     self.packet_history[
                         self.current_packet.data[0]] = self.current_packet
@@ -260,9 +185,9 @@ class HeatPump(object):
         if self.mode != other.mode:
             data[1] += CONTROL_PACKET_VALUES['MODE']
             data[CONTROL_PACKET_POSITIONS['MODE']] = MODE[other.mode]
-        if other.temp and self.temp != int(other.temp):
+        if other.temp and self.temp != float(other.temp):
             data[1] += CONTROL_PACKET_VALUES['TEMP']
-            data[CONTROL_PACKET_POSITIONS['TEMP']] = TEMP[int(other.temp)]
+            data[CONTROL_PACKET_POSITIONS['TEMP']] = TEMP[float(other.temp)]
         if self.fan != other.fan:
             data[1] += CONTROL_PACKET_VALUES['FAN']
             data[CONTROL_PACKET_POSITIONS['FAN']] = FAN[other.fan]
@@ -326,12 +251,20 @@ class Packet(object):
         return self.bytes[HEADER_LEN:-1]
 
 if __name__ == '__main__':
-    hp = HeatPump(sys.argv[1])
-    hp.connect()
+    log.setLevel(logging.DEBUG)
+    console = logging.StreamHandler()
+    log.addHandler(console)
+    if len(sys.argv) >= 2:
+        hp = HeatPump(sys.argv[1])
+        hp.connect()
 
-    while True:
-        try:
-            hp.loop()
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
+        while True:
+            try:
+                hp.loop()
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print('Exiting.')
+                sys.exit(0)
+
+    print('Expected the first argument to be a serial port.')
+    sys.exit(1)
