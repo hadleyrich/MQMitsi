@@ -18,7 +18,7 @@ Example Usage
 On its own, `mitsi.py` doesn't do a lot. Invoking it directly will enabled `DEBUG` logging, and simply output the details of any messages received from the heatpump.
 
 ```bash
-~: ./miysi.py /dev/ttyAMA0
+~: ./mitsi.py /dev/ttyAMA0
 HP Packet: 0x7a : 00 : 0x54
 Temp packet: 20
 HP Packet: 0x62 : 03,00,00,0a,00,00,a8,00,00,00,00,00,00,00,00,00 : 0xa8
@@ -158,12 +158,9 @@ Issues
 Wanted / TODO
 -------------
 
-- More robust reconnection to MQTT broker.
 - Figure out the codes for horizontal vanes.
-- Implement more MQTT connection options
 - CLI script for sending commands.
 - Web interface example.
-- Alternative MQTT protocol standards such as Homie.
 - Python packaging.
 
 LICENSE
