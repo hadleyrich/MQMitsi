@@ -40,6 +40,11 @@ class Handler(object):
 
     def on_connect(self, client, userdata, flags, rc):
         log.info("Connected to MQTT broker: %s", self.broker)
+        self.publish("connected", 1, qos=1, retain=True)
+        self.connected_state = 1
+        self.client.subscribe("%s/command/#" % self.prefix)
+        self.hp.connect()
+        self.hp.dirty = True
 
     def publish(self, topic, payload, **kwargs):
         topic = "%s/%s" % (self.prefix, topic)
