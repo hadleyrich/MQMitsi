@@ -114,6 +114,7 @@ VANE = LookupDict(
 
 DIR = LookupDict(
     {
+        "NA": 0x00,
         "<<": 0x01,
         "<": 0x02,
         "|": 0x03,
